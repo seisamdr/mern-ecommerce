@@ -7,62 +7,121 @@ import cookieOptions from "../utils/cookieOptions.js";
 
 // Register
 export const register = async (req, res) => {
-  const { name, email, password } = req.body;
+  try {
+    const { name, email, password } = req.body;
 
-  // Cek jika email sudah digunakan
-  const existed = await prisma.user.findUnique({ where: { email } });
-  if (existed) return errorResponse(res, "email is already in use", null, 400);
+    // Validate required fields
+    if (!name || !email || !password) {
+      return errorResponse(
+        res,
+        "Name, email, and password are required",
+        null,
+        400
+      );
+    }
 
-  // Hash password sebelum simpan ke DB
-  const hashed = await bcrypt.hash(password, 10);
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return errorResponse(res, "Email is already registered", null, 409);
+    }
 
-  // Simpan user baru ke db
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashed,
-    },
-  });
+    // Hash password before saving to DB
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  return successResponse(res, "Register Successful", {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-  });
+    // Save new user to database
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
+    });
+
+    return successResponse(res, "Registration successful", {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    });
+  } catch (error) {
+    return errorResponse(res, "Registration failed", null, 500);
+  }
 };
 
 // Login
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  // Cari user
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return errorResponse(res, "email tidak ditemukan", null, 401);
+    // Validate required fields
+    if (!email || !password) {
+      return errorResponse(res, "Email and password are required", null, 400);
+    }
 
-  // Cocokkan password
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return errorResponse(res, "Password salah", null, 401);
+    // Find user by email
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return errorResponse(res, "Invalid email or password", null, 401);
+    }
 
-  // Buat JWT Token
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
-  });
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return errorResponse(res, "Invalid email or password", null, 401);
+    }
 
-  res.cookie("token", token, cookieOptions(req));
+    // Create JWT Token
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
-  return successResponse(res, "Login Successful", {
-    userId: user.id,
-    email: email,
-    token: token,
-  });
+    // Set cookie
+    res.cookie("token", token, cookieOptions(req));
+
+    return successResponse(res, "Login successful", {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      token: token,
+    });
+  } catch (error) {
+    return errorResponse(res, "Login failed", null, 500);
+  }
 };
 
 // Logout
 export const logout = (req, res) => {
-  res.clearCookie("token", {
-    ...cookieOptions(req),
-    maxAge: undefined, // override maxAge biar cookie benar-benar terhapus
-  });
-  return successResponse(res, "logout successful");
+  try {
+    res.clearCookie("token", {
+      ...cookieOptions(req),
+      maxAge: undefined, // Override maxAge to ensure cookie is completely removed
+    });
+    return successResponse(res, "Logout successful");
+  } catch (error) {
+    return errorResponse(res, "Logout failed", null, 500);
+  }
 };
+
+// // Get Current User
+// export const getCurrentUser = async (req, res) => {
+//   try {
+//     const user = await prisma.user.findUnique({
+//       where: { id: req.userId },
+//       select: {
+//         id: true,
+//         name: true,
+//         email: true,
+//         createdAt: true,
+//         updatedAt: true,
+//       },
+//     });
+
+//     if (!user) {
+//       return errorResponse(res, "User not found", null, 404);
+//     }
+
+//     return successResponse(res, "User retrieved successfully", user);
+//   } catch (error) {
+//     return errorResponse(res, "Failed to retrieve user data", null, 500);
+//   }
+// };
