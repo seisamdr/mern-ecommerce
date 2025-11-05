@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 
+import authRoutes from "./routes/auth.route.js";
+
 // load .env
 dotenv.config();
 
@@ -17,11 +19,6 @@ app.use(cors());
 
 // Routes
 app.use("/api/auth", authRoutes);
-// app.use("/api/inventories", inventoryRoutes);
-// app.use("/api/products", productRoutes);
-// app.use("/api/carts", cartRoutes);
-// app.use("/api/invoice", invoiceRoutes);
-// app.use("/api/statistik", statistikRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
